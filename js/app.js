@@ -109,6 +109,14 @@ function api(b){
  });
 }
 /* ---- API Vercel (saves + auth) ---- */
+/* Lê o JSON da resposta e, se vier erro, usa a mensagem do servidor (campo 'erro'). */
+function lerResposta(r,padrao){
+ return r.json().catch(function(){return {}}).then(function(j){
+   if(r.status===401&&padrao!=='auth')throw new Error('sessao');
+   if(!r.ok||j.ok===false)throw new Error(j.erro||('Erro HTTP '+r.status));
+   return j;
+ });
+}
 var SAVE_API='/api/saves';
 function apiSaves(body){
  return fetch(SAVE_API,{
@@ -118,40 +126,20 @@ function apiSaves(body){
      'Authorization':'Bearer '+TOKEN
    },
    body:JSON.stringify(body)
- }).then(function(r){
-   if(r.status===401)throw new Error('sessao');
-   if(!r.ok)throw new Error('Erro HTTP '+r.status);
-   return r.json();
- }).then(function(r){
-   if(!r.ok&&r.erro)throw new Error(r.erro);
-   return r;
- });
+ }).then(function(r){return lerResposta(r)});
 }
 function apiAuth(body){
  return fetch('/api/auth',{
    method:'POST',
    headers:{'Content-Type':'application/json'},
    body:JSON.stringify(body)
- }).then(function(r){
-   if(!r.ok)throw new Error('Erro HTTP '+r.status);
-   return r.json();
- }).then(function(r){
-   if(!r.ok&&r.erro)throw new Error(r.erro);
-   return r;
- });
+ }).then(function(r){return lerResposta(r,'auth')});
 }
 function apiCatalog(){
  var url=(window.PM_CONFIG&&window.PM_CONFIG.CATALOG_API)||'/api/catalog';
  return fetch(url,{
    headers:{'Authorization':'Bearer '+TOKEN}
- }).then(function(r){
-   if(r.status===401)throw new Error('sessao');
-   if(!r.ok)throw new Error('A API do catálogo respondeu HTTP '+r.status+'.');
-   return r.json();
- }).then(function(r){
-   if(r.erro)throw new Error(r.erro);
-   return r;
- });
+ }).then(function(r){return lerResposta(r)});
 }
 function sair(){localStorage.removeItem('pm_tok');location.reload()}
 function lim(v){return Math.max(0,Math.min(100,Math.round(v*10)/10))}
