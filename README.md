@@ -40,7 +40,7 @@ test/                 testes dos handlers (node --test)
    - `RESEND_API_KEY` e `MAIL_FROM` (envio do código de login).
    Configure as mesmas variáveis no projeto da Vercel.
 3. No SQL Editor do Neon, execute **nesta ordem**: `db/schema.sql`, `db/migration-001-source-payload.sql`, `db/migration-002-gameplay-relations.sql`, `db/migration-003-auth.sql`, `db/migration-004-career-slots.sql`, `db/migration-005-auth-rate-limit.sql`.
-4. Importe o catálogo: `npm run seed:soccerwiki -- caminho/arquivo.json` (importa ligas e clubes).
+4. Importe o catálogo: `npm run seed:soccerwiki -- caminho/arquivo.json` (importa ligas, clubes, jogadores, dirigentes, copas e estádios, em lotes de 1000). O arquivo é obrigatório. Se o JSON de clubes trouxer `LeagueID`, o clube é ligado à liga automaticamente; sem esse vínculo (`clubs.league_id`) a liga aparece vazia na tela de nova carreira.
 5. Rode localmente com `npm run dev` (Vercel CLI) e abra o endereço exibido.
 
 O formato esperado para dados de elenco, contratos, temporadas, competições e finanças está em `db/gameplay-data.example.json` (as tabelas já existem, mas o jogo ainda não as consome).

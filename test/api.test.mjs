@@ -43,7 +43,7 @@ async function call(handler, request) {
 function fakeDb() {
   const t = {
     users: [], codes: [], sessions: [], reqs: [], careers: [],
-    clubs: [{ id: '100' }, { id: '200' }], playersValues: null, fail: null
+    clubs: [{ id: '100' }, { id: '200' }], playersValues: null, fail: null, lastQuery: ''
   };
   let seq = 0;
   const sql = async (strings, ...v) => {
@@ -121,6 +121,7 @@ function fakeDb() {
       if (i < 0) return [];
       return t.careers.splice(i, 1).map((c) => ({ id: c.id }));
     }
+    if (/FROM leagues/.test(q)) { t.lastQuery = q; return []; }
     if (/FROM players/.test(q)) { t.playersValues = v; return []; }
     if (/^SELECT 1 AS ok/.test(q)) return [{ ok: 1 }];
     return [];
@@ -386,6 +387,13 @@ describe('catalog / world / health', () => {
     const { headers } = login(fake.t);
     const r = await call(catalogHandler, req('GET', {}, headers, '/api/catalog?entity=segredos'));
     assert.equal(r.statusCode, 400);
+  });
+
+  test('catalog de ligas informa a quantidade de clubes de cada liga', async () => {
+    const { headers } = login(fake.t);
+    const r = await call(catalogHandler, req('GET', {}, headers, '/api/catalog?entity=leagues'));
+    assert.equal(r.statusCode, 200);
+    assert.match(fake.t.lastQuery, /AS quantidade/);
   });
 
   test('world limita o tamanho da página a 500 e o offset a >= 0', async () => {
