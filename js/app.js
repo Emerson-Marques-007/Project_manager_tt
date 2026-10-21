@@ -141,7 +141,13 @@ function apiCatalog(){
    headers:{'Authorization':'Bearer '+TOKEN}
  }).then(function(r){return lerResposta(r)});
 }
-function sair(){localStorage.removeItem('pm_tok');location.reload()}
+function sair(){
+ var t=TOKEN;localStorage.removeItem('pm_tok');
+ var fim=function(){location.reload()};
+ if(!t){fim();return}
+ /* invalida a sessão também no servidor; recarrega mesmo se a chamada falhar */
+ fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({action:'logout'})})
+  .catch(function(){}).then(fim)}
 function lim(v){return Math.max(0,Math.min(100,Math.round(v*10)/10))}
 function tier(r){return r<20?'Desconhecido':r<40?'Promissor':r<60?'Respeitado':r<80?'Prestigiado':'Lendário'}
 function fmtK(v){

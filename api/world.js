@@ -1,5 +1,6 @@
 import { db } from './_lib/db.js';
 import { requireAuth } from './_lib/auth.js';
+import { sendError } from './_lib/http.js';
 
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
@@ -27,6 +28,6 @@ export default async function handler(request, response) {
     `;
     return response.status(200).json({ ok: true, players, limit, offset });
   } catch (error) {
-    return response.status(500).json({ ok: false, erro: error.message });
+    return sendError(response, error);
   }
 }

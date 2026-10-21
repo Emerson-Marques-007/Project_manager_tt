@@ -1,4 +1,5 @@
 import { db } from './_lib/db.js';
+import { sendError } from './_lib/http.js';
 
 export default async function handler(request, response) {
   if (request.method !== 'GET') {
@@ -11,6 +12,6 @@ export default async function handler(request, response) {
     const result = await sql`SELECT 1 AS ok`;
     return response.status(200).json({ ok: result[0]?.ok === 1 });
   } catch (error) {
-    return response.status(500).json({ ok: false, erro: error.message });
+    return sendError(response, error);
   }
 }

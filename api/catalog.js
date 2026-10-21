@@ -1,5 +1,6 @@
 import { db } from './_lib/db.js';
 import { requireAuth } from './_lib/auth.js';
+import { sendError } from './_lib/http.js';
 
 const entityQueries = {
   leagues: (sql) => sql`
@@ -64,6 +65,6 @@ export default async function handler(request, response) {
 
     return response.status(200).json({ ok: true, leagues, clubs, competitions, stadiums, managers });
   } catch (error) {
-    return response.status(500).json({ ok: false, erro: error.message });
+    return sendError(response, error);
   }
 }

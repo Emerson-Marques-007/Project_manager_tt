@@ -1,5 +1,6 @@
 import { requireAuth } from './_lib/auth.js';
 import { db } from './_lib/db.js';
+import { sendError } from './_lib/http.js';
 
 /**
  * POST /api/saves  — listar slots do usuário
@@ -153,6 +154,6 @@ export default async function handler(request, response) {
 
     return response.status(400).json({ ok: false, erro: 'Ação inválida.' });
   } catch (error) {
-    return response.status(500).json({ ok: false, erro: error.message });
+    return sendError(response, error);
   }
 }
