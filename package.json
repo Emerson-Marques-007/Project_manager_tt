@@ -4,7 +4,8 @@
     "dev": "vercel dev",
     "check": "node --check api/_lib/db.js && node --check api/_lib/http.js && node --check api/_lib/auth.js && node --check api/auth.js && node --check api/saves.js && node --check api/catalog.js && node --check api/world.js && node --check api/health.js",
     "seed:soccerwiki": "node scripts/seed-soccerwiki.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "link:clubes-ligas": "node scripts/link-clubs-leagues.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0"

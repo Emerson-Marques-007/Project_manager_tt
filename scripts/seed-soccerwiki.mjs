@@ -40,11 +40,10 @@ async function seedLeagues() {
 
 async function seedClubs() {
   const total = await inBatches(data.ClubData, (payload) => sql`
-    INSERT INTO clubs (id, league_id, name, crest_url, source, source_payload)
-    SELECT item->>'ID', (SELECT l.id FROM leagues l WHERE l.id = item->>'LeagueID'), COALESCE(NULLIF(item->>'Name', ''), 'Clube sem nome'), NULLIF(item->>'ImageURL', ''), 'soccerwiki', item
+    INSERT INTO clubs (id, name, crest_url, source, source_payload)
+    SELECT item->>'ID', COALESCE(NULLIF(item->>'Name', ''), 'Clube sem nome'), NULLIF(item->>'ImageURL', ''), 'soccerwiki', item
     FROM jsonb_array_elements(${payload}::jsonb) AS item
     ON CONFLICT (id) DO UPDATE SET
-      league_id = COALESCE(EXCLUDED.league_id, clubs.league_id),
       name = EXCLUDED.name,
       crest_url = EXCLUDED.crest_url,
       source_payload = EXCLUDED.source_payload
@@ -112,4 +111,4 @@ await seedManagers();
 await seedCompetitions();
 await seedStadiums();
 
-console.log('Carga inicial do SoccerWiki concluída.');
+console.log('Carga inicial do SoccerWiki concluída. Próximo passo: vincular clubes às ligas (npm run link:clubes-ligas -- clubes.csv).');
