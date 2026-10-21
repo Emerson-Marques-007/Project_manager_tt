@@ -98,7 +98,16 @@ export default async function handler(request, response) {
       }
 
       // Guardar metadados dentro do state para listar sem desserializar
-      const clubId = String(state.cid || meta.clube || '');
+      // state.cid é só o índice do clube na lista da liga; o id real do catálogo fica em state.cl[cid].dbid
+      const clubRef = Array.isArray(state.cl) ? state.cl[state.cid] : null;
+      const clubId = String((clubRef && clubRef.dbid) || '');
+      if (!clubId) {
+        return response.status(400).json({ ok: false, erro: 'Save sem clube válido.' });
+      }
+      const clubRows = await sql`SELECT id FROM clubs WHERE id = ${clubId} LIMIT 1`;
+      if (!clubRows[0]) {
+        return response.status(400).json({ ok: false, erro: 'Clube do save não existe no catálogo.' });
+      }
       const managerName = String(state.tec || meta.tec || 'Treinador');
       state._meta = meta;
       state._meta.clube = meta.clube;
