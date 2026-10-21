@@ -246,7 +246,7 @@ function entrar(comSave){
  $('quem').textContent=EMAIL||'';$('sair').style.display='inline-block';
  $('p1').style.display='none';$('p2').style.display='none';msg('m-auth','Entrando na sua conta…',true);
  var tentar=function(n){
-  var p=comSave?Promise.resolve():apiSaves({action:'list'}).then(function(r){SLOTS=normSlots(r.slots)});
+  var p=apiSaves({action:'list'}).then(function(r){SLOTS=normSlots(r.slots)}); /* sempre lista os slots, inclusive após login novo */
   p.then(function(){return PMUI.carregar()}).then(function(){msg('m-auth','');inicio()}).catch(function(e){
    if(e.message==='sessao'){sair();return}
    if(n<3){msg('m-auth','Conexão lenta, tentando de novo…',true);setTimeout(function(){tentar(n+1)},1500*(n+1));return}
