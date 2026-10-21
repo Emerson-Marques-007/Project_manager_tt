@@ -1,5 +1,6 @@
 import { requireAuth } from './_lib/auth.js';
 import { db } from './_lib/db.js';
+import { sendError } from './_lib/http.js';
 
 /**
  * POST /api/saves  — listar slots do usuário
@@ -38,31 +39,33 @@ export default async function handler(request, response) {
     // --- LISTAR slots ---
     if (action === 'list' || request.method === 'GET') {
       const careers = await sql`
-        SELECT id, club_id, manager_name, season, state
+        SELECT id, slot, club_id, manager_name, season, state
         FROM careers
         WHERE user_id = ${userId}
-        ORDER BY created_at
+        ORDER BY slot
       `;
       const slots = [null, null, null];
-      careers.forEach((c, i) => {
-        const slot = Math.min(i, 2);
+      careers.forEach((c) => {
+        const idx = Number(c.slot) - 1;
+        if (idx < 0 || idx > 2) return;
         const state = c.state || {};
-        slots[slot] = {
-          slot: slot + 1,
+        const m = state._meta || {};
+        slots[idx] = {
+          slot: idx + 1,
           id: c.id,
           meta: {
-            clube: state.clube || c.manager_name,
-            tec: state.tec,
+            clube: m.clube || c.manager_name,
+            tec: m.tec || state.tec,
             temp: state.temp,
             rod: state.rod,
-            total: state.total,
-            pos: state.pos,
-            caixa: state.caixa,
-            rep: state.rep,
-            escudo: state.escudo,
-            liga: state.liga,
-            ligaLogo: state.ligaLogo,
-            pais: state.pais
+            total: m.total,
+            pos: m.pos,
+            caixa: m.caixa,
+            rep: m.rep,
+            escudo: m.escudo,
+            liga: m.liga,
+            ligaLogo: m.ligaLogo,
+            pais: m.pais
           }
         };
       });
@@ -76,9 +79,8 @@ export default async function handler(request, response) {
     if (action === 'load') {
       const rows = await sql`
         SELECT state FROM careers
-        WHERE user_id = ${userId}
-        ORDER BY created_at
-        OFFSET ${slot - 1} LIMIT 1
+        WHERE user_id = ${userId} AND slot = ${slot}
+        LIMIT 1
       `;
       if (!rows[0] || !rows[0].state) {
         return response.status(404).json({ ok: false, erro: 'Esse slot está vazio.' });
@@ -98,7 +100,16 @@ export default async function handler(request, response) {
       }
 
       // Guardar metadados dentro do state para listar sem desserializar
-      const clubId = String(state.cid || meta.clube || '');
+      // state.cid é só o índice do clube na lista da liga; o id real do catálogo fica em state.cl[cid].dbid
+      const clubRef = Array.isArray(state.cl) ? state.cl[state.cid] : null;
+      const clubId = String((clubRef && clubRef.dbid) || '');
+      if (!clubId) {
+        return response.status(400).json({ ok: false, erro: 'Save sem clube válido.' });
+      }
+      const clubRows = await sql`SELECT id FROM clubs WHERE id = ${clubId} LIMIT 1`;
+      if (!clubRows[0]) {
+        return response.status(400).json({ ok: false, erro: 'Clube do save não existe no catálogo.' });
+      }
       const managerName = String(state.tec || meta.tec || 'Treinador');
       state._meta = meta;
       state._meta.clube = meta.clube;
@@ -114,51 +125,35 @@ export default async function handler(request, response) {
       state._meta.ligaLogo = meta.ligaLogo;
       state._meta.pais = meta.pais;
 
-      // Buscar slot existente
-      const existing = await sql`
-        SELECT id FROM careers
-        WHERE user_id = ${userId}
-        ORDER BY created_at
-        OFFSET ${slot - 1} LIMIT 1
+      await sql`
+        INSERT INTO careers (user_id, slot, club_id, manager_name, season, state)
+        VALUES (${userId}, ${slot}, ${clubId}, ${managerName}, ${Number(state.temp) || 1}, ${JSON.stringify(state)})
+        ON CONFLICT (user_id, slot) DO UPDATE SET
+          state = EXCLUDED.state,
+          manager_name = EXCLUDED.manager_name,
+          club_id = EXCLUDED.club_id,
+          season = EXCLUDED.season,
+          updated_at = now()
       `;
-
-      if (existing[0]) {
-        await sql`
-          UPDATE careers SET
-            state = ${JSON.stringify(state)},
-            manager_name = ${managerName},
-            club_id = ${clubId},
-            season = ${Number(state.temp) || 1},
-            updated_at = now()
-          WHERE id = ${existing[0].id}
-        `;
-      } else {
-        await sql`
-          INSERT INTO careers (user_id, club_id, manager_name, season, state)
-          VALUES (${userId}, ${clubId}, ${managerName}, ${Number(state.temp) || 1}, ${JSON.stringify(state)})
-        `;
-      }
 
       return response.status(200).json({ ok: true });
     }
 
     // --- APAGAR slot ---
     if (action === 'delete') {
-      const existing = await sql`
-        SELECT id FROM careers
-        WHERE user_id = ${userId}
-        ORDER BY created_at
-        OFFSET ${slot - 1} LIMIT 1
+      const removed = await sql`
+        DELETE FROM careers
+        WHERE user_id = ${userId} AND slot = ${slot}
+        RETURNING id
       `;
-      if (!existing[0]) {
+      if (!removed[0]) {
         return response.status(404).json({ ok: false, erro: 'Slot vazio.' });
       }
-      await sql`DELETE FROM careers WHERE id = ${existing[0].id}`;
       return response.status(200).json({ ok: true });
     }
 
     return response.status(400).json({ ok: false, erro: 'Ação inválida.' });
   } catch (error) {
-    return response.status(500).json({ ok: false, erro: error.message });
+    return sendError(response, error);
   }
 }

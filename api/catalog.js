@@ -1,10 +1,12 @@
 import { db } from './_lib/db.js';
 import { requireAuth } from './_lib/auth.js';
+import { sendError } from './_lib/http.js';
 
 const entityQueries = {
   leagues: (sql) => sql`
     SELECT id, name AS nome, country AS pais, season AS temporada,
-      logo_url AS logo, official_site AS site, source
+      logo_url AS logo, official_site AS site, source,
+      (SELECT COUNT(*)::int FROM clubs c WHERE c.league_id = leagues.id) AS quantidade
     FROM leagues
     ORDER BY country NULLS LAST, name
   `,
@@ -64,6 +66,6 @@ export default async function handler(request, response) {
 
     return response.status(200).json({ ok: true, leagues, clubs, competitions, stadiums, managers });
   } catch (error) {
-    return response.status(500).json({ ok: false, erro: error.message });
+    return sendError(response, error);
   }
 }
