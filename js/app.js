@@ -386,11 +386,14 @@ function selecionarLiga(id){
  $('link-logo-liga').innerHTML=LIGA_SEL.logoBusca?'<a class="extlink" href="'+esc(LIGA_SEL.logoBusca)+'" target="_blank" rel="noopener">Consultar logos da liga ↗</a>':'';
  $('clubes').innerHTML=CLUBES.map(function(c){
   var link=c.escudoBusca?'<a class="extlink" href="'+esc(c.escudoBusca)+'" target="_blank" rel="noopener">Ver opções de escudo ↗</a>':'';
-  return '<div class="club" data-id="'+c.id+'">'+crest(c,42)+
+  return '<div class="club" role="button" tabindex="0" data-id="'+c.id+'">'+crest(c,42)+
    '<div class="clubmeta"><b>'+esc(c.n)+'</b><span>Reputação '+c.f+'/100</span>'+link+'</div></div>';
  }).join('');
  var cs=$('clubes').children;
- for(var i=0;i<cs.length;i++)cs[i].onclick=function(){escolher(+this.getAttribute('data-id'))};
+ for(var i=0;i<cs.length;i++){
+  cs[i].onclick=function(){escolher(+this.getAttribute('data-id'))};
+  cs[i].onkeydown=function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();escolher(+this.getAttribute('data-id'))}};
+ }
  msg('m-esc','');
 }
 function escolher(id){
@@ -416,11 +419,6 @@ function cal(ids){var n=ids.length,a=ids.slice(),r=[],i,j,m,h,v;
  return r.concat(r.map(function(x){return x.map(function(p){return [p[1],p[0]]})}))}
 /* Motor principal mantido neste arquivo porque compartilha estado e funções internas. */
 
-/* =====================================================================
-   PM MOTOR - PARTE 1  (mundo, janelas, valor, forma/moral, entrosamento, simulação)
-   Cole DENTRO do <script> do HTML, logo depois da função cal().
-   Usa só: S, FORM, WA, WD, REFW (já existem no seu código).
-   ===================================================================== */
 function render(){
  prepararIngresso();if(S.esq&&S.esq.slots&&S.elenco)ajustaBanco();
  var c=clube(S.cid),o=ordem(),pos=o.indexOf(S.cid)+1;
@@ -444,26 +442,6 @@ function render(){
  bindTat();bindCal();bindElenco();PMUI.bind();
  if($('tk'))$('tk').oninput=function(){S.preco=+this.value;atualizaIng()};
  pendencias()}
-
-/* =====================================================================
-   EDIÇÕES MANUAIS (pequenas) no resto do código
-   =====================================================================
-   A) mil() -> mostrar 2 casas decimais quando o valor for pequeno. Troque a função por:
-      function mil(v){var d=Math.abs(v)<10000?2:1;return (v<0?'-':'')+'€ '+(Math.abs(Number(v)||0)/1000).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+' mi'}
-
-   B) No botão "Continuar" ($('b-cont').onclick=...), troque o final  tela('jogo');render();
-      por  migrar();tela('jogo');render();
-
-   C) Em iniciar(): logo DEPOIS do bloco  S={tec:tec, ... fim:false};  e ANTES de  zerar();
-      acrescente:   S.elenco=gerarElenco(c.f);S.evRec=[];
-
-   D) No HTML (corpo da página), troque a linha:
-        <section class='tela' id='t-jogo'><div id='dash'/></section>
-      por:
-        <section class='tela' id='t-jogo'><div id='dash'/></section>
-      e logo abaixo de  <div id='toast'/>  acrescente:  <div id='anim'/>
-*/
-
 
 function iniciar(){
  var tec=$('tec').value.trim();
@@ -505,6 +483,4 @@ function salvarJa(){
 function salvar(){clearTimeout(SALVT);SALVT=setTimeout(salvarJa,1500)}
 
 /* ---------- início ---------- */
-if(API.indexOf('COLE_AQUI')===0){msg('m-auth','Configure a URL do proxy do Projeto Manager na variável API.')}
-/* Magic-link (acao:'link') removido: auth agora pela API Vercel /api/auth */
-else if(TOKEN){entrar()}
+if(TOKEN){entrar()}

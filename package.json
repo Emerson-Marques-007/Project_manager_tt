@@ -7,9 +7,14 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@neondatabase/serverless": "latest"
+    "@neondatabase/serverless": "^1.2.0"
   },
   "devDependencies": {
-    "vercel": "latest"
-  }
+    "vercel": "^65.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "name": "projeto-manager",
+  "private": true
 }
