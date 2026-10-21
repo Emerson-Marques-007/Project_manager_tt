@@ -1,0 +1,15 @@
+{
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check api/health.js",
+    "seed:soccerwiki": "node scripts/seed-soccerwiki.mjs",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "latest"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  }
+}
