@@ -24,7 +24,11 @@ WHERE c.id = d.id AND d.dup > 1;
 ALTER TABLE careers
   ALTER COLUMN slot SET NOT NULL;
 
-ALTER TABLE careers
-  ADD CONSTRAINT careers_slot_range CHECK (slot BETWEEN 1 AND 3);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'careers_slot_range') THEN
+    ALTER TABLE careers ADD CONSTRAINT careers_slot_range CHECK (slot BETWEEN 1 AND 3);
+  END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS careers_user_slot_idx ON careers(user_id, slot);
