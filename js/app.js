@@ -16,7 +16,7 @@ var API=(window.PM_CONFIG&&window.PM_CONFIG.API)||'';
 var $=function(i){return document.getElementById(i)};
 var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var TOKEN=localStorage.getItem('pm_tok'),EMAIL=localStorage.getItem('pm_mail'),SAVE='',SLOTS=[null,null,null],SLOT=0,S=null,SEL=null,RODADAS=14;
-var LIGAS=[],TODOS_CLUBES=[],CLUBES=[],LIGA_SEL=null;
+var LIGAS=[],CLUBES=[],LIGA_SEL=null,CLUBES_CACHE={},LIGA_REQ=0;
 
 /* Catálogo de eventos carregado de js/eventos.js. */
 
@@ -135,9 +135,10 @@ function apiAuth(body){
    body:JSON.stringify(body)
  }).then(function(r){return lerResposta(r,'auth')});
 }
-function apiCatalog(){
- var url=(window.PM_CONFIG&&window.PM_CONFIG.CATALOG_API)||'/api/catalog';
- return fetch(url,{
+function apiCatalog(params){
+ var base=(window.PM_CONFIG&&window.PM_CONFIG.CATALOG_API)||'/api/catalog';
+ var qs=Object.keys(params||{}).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k])}).join('&');
+ return fetch(base+(qs?(base.indexOf('?')<0?'?':'&')+qs:''),{
    headers:{'Authorization':'Bearer '+TOKEN}
  }).then(function(r){return lerResposta(r)});
 }
@@ -315,7 +316,7 @@ function metaSave(){
   temp:S.temp,rod:S.rod,total:S.cal?S.cal.length:RODADAS,pos:o.indexOf(S.cid)+1,n:S.cl.length,caixa:Math.round(S.caixa),rep:c.f}}
 $('b-voltamenu').onclick=function(){inicio()};
 $('b-voltaligas').onclick=function(){
- LIGA_SEL=null;SEL=null;$('box-clubes').style.display='none';$('box-ligas').style.display='block';detVazio();msg('m-esc','');window.scrollTo(0,0);
+ LIGA_REQ++;LIGA_SEL=null;SEL=null;$('box-clubes').style.display='none';$('box-ligas').style.display='block';detVazio();msg('m-esc','');window.scrollTo(0,0);
 };
 
 function num(v){var n=Number(v);return isFinite(n)?n:0}
@@ -343,13 +344,15 @@ function adaptarClube(raw,index,total){
  };
 }
 function carregarCatalogo(){
- msg('m-esc','Carregando ligas e clubes do Neon…',true);
- return apiCatalog().then(function(r){
-  LIGAS=Array.isArray(r.ligas)?r.ligas:[];
-  TODOS_CLUBES=Array.isArray(r.clubes)?r.clubes:[];
-  if(!LIGAS.length||!TODOS_CLUBES.length)throw new Error('Não encontrei ligas ou clubes no Neon. Confira a importação do catálogo.');
+ msg('m-esc','Carregando ligas…',true);
+ /* só as ligas que têm clubes; os clubes de cada liga são buscados (paginados) ao escolher a liga */
+ return apiCatalog({entity:'leagues',comClubes:1,limit:500}).then(function(r){
+  LIGAS=Array.isArray(r.leagues)?r.leagues:[];
+  if(!LIGAS.length)throw new Error('Nenhuma liga com clubes encontrada. Importe o catálogo e vincule os clubes às ligas (npm run link:clubes-ligas).');
   desenharLigas();msg('m-esc','',true);
- }).catch(function(e){msg('m-esc','Não foi possível carregar os dados do catálogo: '+e.message);throw e});
+ }).catch(function(e){
+  if(e.message==='sessao'){sair();throw e}
+  msg('m-esc','Não foi possível carregar os dados do catálogo: '+e.message);throw e});
 }
 function novaTela(){
  tela('esc');SEL=null;LIGA_SEL=null;CLUBES=[];detVazio();$('b-ini').disabled=true;$('tec-ini').textContent=iniciais($('tec').value);
@@ -366,35 +369,58 @@ function desenharLigas(){
   var marca=sigla(l.nome);
   return '<button type="button" class="league-card" data-liga="'+esc(l.id)+'">'+
    '<span class="league-mark" style="position:relative">'+esc(marca)+(l.logo?'<img src="'+esc(l.logo)+'" alt="" referrerpolicy="no-referrer" style="position:absolute;inset:0;margin:auto;width:46px;height:46px;object-fit:contain;background:#143c25" onerror="this.remove()">':'')+'</span><span><b>'+esc(l.nome)+'</b>'+
-   '<small>'+esc(l.pais)+' · '+Number(l.quantidade||0)+' clubes</small></span></button>';
+   '<small>'+(l.pais?esc(l.pais)+' · ':'')+Number(l.quantidade||0)+' clubes</small></span></button>';
  }).join('');
  var bs=el.querySelectorAll('[data-liga]');
  for(var i=0;i<bs.length;i++)bs[i].onclick=function(){selecionarLiga(this.getAttribute('data-liga'))};
- var pad=LIGAS.filter(function(l){return /brasil/i.test(l.nome+' '+l.pais)})[0]||LIGAS[0];
+ var pad=LIGAS.filter(function(l){return /brasil/i.test(l.nome+' '+(l.pais||''))})[0]||LIGAS[0];
  if(pad)selecionarLiga(pad.id);
+}
+/* Busca todos os clubes da liga em páginas de 100 (máx. 500) e guarda em cache. */
+function buscarClubesLiga(id){
+ if(CLUBES_CACHE[id])return Promise.resolve(CLUBES_CACHE[id]);
+ var todos=[],limite=100;
+ var pagina=function(offset){
+  return apiCatalog({entity:'clubs',leagueId:id,limit:limite,offset:offset}).then(function(r){
+   var lista=Array.isArray(r.clubs)?r.clubs:[];
+   todos=todos.concat(lista);
+   if(lista.length===limite&&todos.length<(r.total||0)&&todos.length<500)return pagina(offset+limite);
+   return todos;
+  });
+ };
+ return pagina(0).then(function(t){CLUBES_CACHE[id]=t;return t});
 }
 function selecionarLiga(id){
  LIGA_SEL=LIGAS.filter(function(l){return String(l.id)===String(id)})[0];
  if(!LIGA_SEL){msg('m-esc','Não foi possível encontrar essa liga.');return}
- var raw=TODOS_CLUBES.filter(function(c){return String(c.ligaId)===String(LIGA_SEL.id)});
- if(!raw.length){msg('m-esc','Não há clubes cadastrados para esta liga.');return}
- CLUBES=raw.map(function(c,i){return adaptarClube(c,i,raw.length)});
- SEL=null;detVazio();$('b-ini').disabled=true;$('box-clubes').style.display='block';
- var lc=$('ligas').children;for(var j=0;j<lc.length;j++)lc[j].className='league-card'+(lc[j].getAttribute('data-liga')===String(LIGA_SEL.id)?' sel':'');
- $('titulo-clubes').textContent='Escolher clube';
- $('subtitulo-liga').textContent=LIGA_SEL.nome+' · '+LIGA_SEL.pais+' · Temporada '+LIGA_SEL.temporada+' · '+CLUBES.length+' clubes';
- $('link-logo-liga').innerHTML=LIGA_SEL.logoBusca?'<a class="extlink" href="'+esc(LIGA_SEL.logoBusca)+'" target="_blank" rel="noopener">Consultar logos da liga ↗</a>':'';
- $('clubes').innerHTML=CLUBES.map(function(c){
-  var link=c.escudoBusca?'<a class="extlink" href="'+esc(c.escudoBusca)+'" target="_blank" rel="noopener">Ver opções de escudo ↗</a>':'';
-  return '<div class="club" role="button" tabindex="0" data-id="'+c.id+'">'+crest(c,42)+
-   '<div class="clubmeta"><b>'+esc(c.n)+'</b><span>Reputação '+c.f+'/100</span>'+link+'</div></div>';
- }).join('');
- var cs=$('clubes').children;
- for(var i=0;i<cs.length;i++){
-  cs[i].onclick=function(){escolher(+this.getAttribute('data-id'))};
-  cs[i].onkeydown=function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();escolher(+this.getAttribute('data-id'))}};
- }
- msg('m-esc','');
+ var req=++LIGA_REQ,liga=LIGA_SEL;
+ SEL=null;CLUBES=[];detVazio();$('b-ini').disabled=true;
+ var lc=$('ligas').children;for(var j=0;j<lc.length;j++)lc[j].className='league-card'+(lc[j].getAttribute('data-liga')===String(liga.id)?' sel':'');
+ msg('m-esc','Carregando clubes de '+liga.nome+'…',true);
+ buscarClubesLiga(liga.id).then(function(raw){
+  if(req!==LIGA_REQ)return; /* o usuário já escolheu outra liga */
+  if(!raw.length){$('box-clubes').style.display='none';msg('m-esc','Não há clubes cadastrados para esta liga.');return}
+  CLUBES=raw.map(function(c,i){return adaptarClube(c,i,raw.length)});
+  $('box-clubes').style.display='block';
+  $('titulo-clubes').textContent='Escolher clube';
+  $('subtitulo-liga').textContent=[liga.nome,liga.pais,liga.temporada?'Temporada '+liga.temporada:'',CLUBES.length+' clubes'].filter(Boolean).join(' · ');
+  $('link-logo-liga').innerHTML=liga.logoBusca?'<a class="extlink" href="'+esc(liga.logoBusca)+'" target="_blank" rel="noopener">Consultar logos da liga ↗</a>':'';
+  $('clubes').innerHTML=CLUBES.map(function(c){
+   var link=c.escudoBusca?'<a class="extlink" href="'+esc(c.escudoBusca)+'" target="_blank" rel="noopener">Ver opções de escudo ↗</a>':'';
+   return '<div class="club" role="button" tabindex="0" data-id="'+c.id+'">'+crest(c,42)+
+    '<div class="clubmeta"><b>'+esc(c.n)+'</b><span>Reputação '+c.f+'/100</span>'+link+'</div></div>';
+  }).join('');
+  var cs=$('clubes').children;
+  for(var i=0;i<cs.length;i++){
+   cs[i].onclick=function(){escolher(+this.getAttribute('data-id'))};
+   cs[i].onkeydown=function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();escolher(+this.getAttribute('data-id'))}};
+  }
+  msg('m-esc','');
+ }).catch(function(e){
+  if(req!==LIGA_REQ)return;
+  if(e.message==='sessao'){sair();return}
+  msg('m-esc','Não foi possível carregar os clubes: '+e.message);
+ });
 }
 function escolher(id){
  SEL=id;var c=CLUBES[id],cs=$('clubes').children;

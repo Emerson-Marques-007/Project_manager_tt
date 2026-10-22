@@ -13,6 +13,7 @@ import savesHandler from '../api/saves.js';
 import catalogHandler from '../api/catalog.js';
 import worldHandler from '../api/world.js';
 import healthHandler from '../api/health.js';
+import { lerPagina, LIMITE_MAXIMO, LIMITE_PADRAO } from '../api/_lib/paginacao.js';
 
 /* ------------------------------------------------------------------ *
  * Utilidades
@@ -43,7 +44,7 @@ async function call(handler, request) {
 function fakeDb() {
   const t = {
     users: [], codes: [], sessions: [], reqs: [], careers: [],
-    clubs: [{ id: '100' }, { id: '200' }], playersValues: null, fail: null, lastQuery: ''
+    clubs: [{ id: '100' }, { id: '200' }], playersValues: null, fail: null, lastQuery: '', catalogRows: [], catalogTotal: 0, clubValues: null
   };
   let seq = 0;
   const sql = async (strings, ...v) => {
@@ -121,7 +122,9 @@ function fakeDb() {
       if (i < 0) return [];
       return t.careers.splice(i, 1).map((c) => ({ id: c.id }));
     }
-    if (/FROM leagues/.test(q)) { t.lastQuery = q; return []; }
+    if (/AS total FROM/.test(q)) return [{ total: t.catalogTotal }];
+    if (/^SELECT id, league_id AS "ligaId"/.test(q)) { t.clubValues = v; return t.catalogRows; }
+    if (/FROM leagues/.test(q)) { t.lastQuery = q; return t.catalogRows; }
     if (/FROM players/.test(q)) { t.playersValues = v; return []; }
     if (/^SELECT 1 AS ok/.test(q)) return [{ ok: 1 }];
     return [];
@@ -396,6 +399,39 @@ describe('catalog / world / health', () => {
     assert.match(fake.t.lastQuery, /AS quantidade/);
   });
 
+  test('catalog: contrato com o front (chaves leagues/clubs, total, limit, offset)', async () => {
+    const { headers } = login(fake.t);
+    fake.t.catalogRows = [{ id: '14', nome: 'Brasileirão Série A', quantidade: 20 }];
+    fake.t.catalogTotal = 1;
+    const r = await call(catalogHandler, req('GET', {}, headers, '/api/catalog?entity=leagues&comClubes=1&limit=500'));
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.leagues[0].id, '14');
+    assert.equal(r.body.total, 1);
+    assert.equal(r.body.limit, 500);
+    assert.equal(r.body.offset, 0);
+  });
+
+  test('catalog sem entity devolve as ligas', async () => {
+    const { headers } = login(fake.t);
+    fake.t.catalogRows = [{ id: '1' }];
+    const r = await call(catalogHandler, req('GET', {}, headers, '/api/catalog'));
+    assert.ok(Array.isArray(r.body.leagues));
+  });
+
+  test('catalog de clubes: filtra por liga, pagina e limita o tamanho da página', async () => {
+    const { headers } = login(fake.t);
+    fake.t.catalogRows = [{ id: '290', nome: 'Corinthians', ligaId: '14' }];
+    fake.t.catalogTotal = 20;
+    const r = await call(catalogHandler, req('GET', {}, headers, '/api/catalog?entity=clubs&leagueId=14&limit=99999&offset=-3'));
+    assert.equal(r.statusCode, 200);
+    assert.equal(r.body.clubs.length, 1);
+    assert.equal(r.body.total, 20);
+    assert.equal(r.body.limit, 500);
+    assert.equal(r.body.offset, 0);
+    assert.ok(fake.t.clubValues.includes('14'));
+    assert.ok(fake.t.clubValues.includes(500));
+  });
+
   test('world limita o tamanho da página a 500 e o offset a >= 0', async () => {
     const { headers } = login(fake.t);
     await call(worldHandler, req('GET', {}, headers, '/api/world?limit=99999&offset=-5'));
@@ -410,5 +446,21 @@ describe('catalog / world / health', () => {
     const r = await call(healthHandler, req('GET'));
     assert.equal(r.statusCode, 500);
     assert.ok(!JSON.stringify(r.body).includes('segredo'));
+  });
+});
+
+describe('paginação (utilitário)', () => {
+  test('usa padrões, limita o máximo e não aceita offset negativo', () => {
+    assert.equal(lerPagina('/x').limit, LIMITE_PADRAO);
+    assert.equal(lerPagina('/x?limit=999999').limit, LIMITE_MAXIMO);
+    assert.equal(lerPagina('/x?limit=0').limit, LIMITE_PADRAO);
+    assert.equal(lerPagina('/x?limit=abc').limit, LIMITE_PADRAO);
+    assert.equal(lerPagina('/x?offset=-10').offset, 0);
+    assert.equal(lerPagina('/x?offset=40').offset, 40);
+  });
+
+  test('busca escapa curingas do ILIKE e limita o tamanho', () => {
+    assert.equal(lerPagina('/x?search=100%25_a').like, '%100\\%\\_a%');
+    assert.equal(lerPagina('/x?search=' + 'a'.repeat(200)).search.length, 80);
   });
 });
