@@ -1,17 +1,4 @@
-/* ======= CONFIGURAÇÃO: URL /exec do Apps Script ======= */
-(function(){
- var el=document.querySelector("link[rel='icon'][type='image/svg+xml']");if(!el)return;
- var href=el.href;
- document.querySelectorAll("link[rel~='icon'],link[rel='apple-touch-icon']").forEach(function(l){if(l!==el)l.remove()});
- var img=new Image();
- img.onload=function(){
-  var c=document.createElement('canvas');c.width=c.height=180;c.getContext('2d').drawImage(img,0,0,180,180);
-  var u=c.toDataURL('image/png'),p=document.createElement('link');p.rel='icon';p.type='image/png';p.href=u;document.head.appendChild(p);
-  var a=document.createElement('link');a.rel='apple-touch-icon';a.href=u;document.head.appendChild(a)};
- img.src=href;
-})();
 var API=(window.PM_CONFIG&&window.PM_CONFIG.API)||'';
-/* ================================================================== */
 
 var $=function(i){return document.getElementById(i)};
 var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
@@ -510,3 +497,6 @@ function salvar(){clearTimeout(SALVT);SALVT=setTimeout(salvarJa,1500)}
 
 /* ---------- início ---------- */
 if(TOKEN){entrar()}
+
+/* ---------- PWA: service worker (instalável + shell offline; a API nunca é cacheada) ---------- */
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
